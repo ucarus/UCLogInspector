@@ -25,18 +25,18 @@ INTRUDERS_IPS=()  # Array for storing found IP addresses
 
 show_help() {
     echo "Commands:"
-    echo "  intruders - Prints IP addresses containing at least one keyword"
-    echo "  successful-attacks - Searches for successful POST requests with code 200 from 'intruders' IP addresses"
-    echo "  search <keyword> - Searches for a keyword in the log"
-    echo "  list - Displays unique IP addresses"
-    echo "  add-log <log_file> - Changes the currently used log file"
-    echo "  show-logs - Displays the history of used log files"
-    echo "  switch-log <index> - Switches to a log file based on the index in history"
-    echo "  add-keyword <keyword> - Adds a keyword to the search list"
-    echo "  remove-keyword <keyword> - Removes a keyword from the list"
-    echo "  show-keywords - Displays the list of keywords for searching"
-    echo "  quit - Exits the script"
-    echo "  help - Displays this help message"
+    echo "  intruders (i) - Prints IP addresses containing at least one keyword"
+    echo "  successful-attacks (sa) - Searches for successful POST requests with code 200 from 'intruders' IP addresses"
+    echo "  search (s) <index> - Searches for an IP address based on its index in the intruders list"
+    echo "  list (l) - Displays unique IP addresses"
+    echo "  add-log (al) <log_file> - Changes the currently used log file"
+    echo "  show-logs (sl) - Displays the history of used log files"
+    echo "  switch-log (sw) <index> - Switches to a log file based on the index in history"
+    echo "  add-keyword (ak) <keyword> - Adds a keyword to the search list"
+    echo "  remove-keyword (rk) <keyword> - Removes a keyword from the list"
+    echo "  show-keywords (sk) - Displays the list of keywords for searching"
+    echo "  quit (q) - Exits the script"
+    echo "  help (h) - Displays this help message"
 }
 
 search_logs() {
@@ -65,7 +65,7 @@ while true; do
     read -e -p "shell>" cmd args
 
     case "$cmd" in
-        search)
+        s|search)
             if [[ $args =~ ^[0-9]+$ ]] && [ $args -ge 0 ] && [ $args -lt ${#INTRUDERS_IPS[@]} ]; then
                 ip_address="${INTRUDERS_IPS[$args]}"
                 search_logs "$ip_address" "$LOG_FILE" | less -S
@@ -73,10 +73,10 @@ while true; do
                 echo "Invalid index: $args"
             fi
             ;;
-        list)
+        l|list)
             cut -d' ' -f1 "$LOG_FILE" | sort -u
             ;;
-        add-log)
+        al|add-log)
             if [[ -f "$args" ]]; then
                 LOG_FILE="$args"
 
@@ -94,13 +94,13 @@ while true; do
                 echo "Log file '$args' not found."
             fi
             ;;
-        show-logs)
+        sl|show-logs)
             echo "Log file history:"
             for i in "${!LOG_HISTORY[@]}"; do
                 echo "$i: ${LOG_HISTORY[$i]}"
             done
             ;;
-        switch-log)
+        sw|switch-log)
             if [[ $args =~ ^[0-9]+$ ]] && [ $args -ge 0 ] && [ $args -lt ${#LOG_HISTORY[@]} ]; then
                 LOG_FILE="${LOG_HISTORY[$args]}"
                 
@@ -116,12 +116,12 @@ while true; do
                 echo "Invalid index: $args"
             fi
             ;;
-        add-keyword)
+        ak|add-keyword)
             KEYWORDS+=("$args")
             echo "$args" >> "$KEYWORDS_FILE"
             echo "Keyword '$args' added."
             ;;
-        remove-keyword)
+        rk|remove-keyword)
             if [[ " ${KEYWORDS[*]} " =~ " $args " ]]; then
                 # Removing the keyword
                 KEYWORDS=("${KEYWORDS[@]/$args}")
@@ -134,13 +134,13 @@ while true; do
                 echo "Keyword '$args' not found."
             fi
             ;;
-        show-keywords)
+        sk|show-keywords)
             echo "List of keywords for searching:"
             for kw in "${KEYWORDS[@]}"; do
                 echo "  - $kw"
             done
             ;;
-        intruders)
+        i|intruders)
             if [[ -f "$LOG_FILE" ]]; then
                 if [ ${#KEYWORDS[@]} -eq 0 ]; then
                     echo "No keywords provided."
@@ -158,7 +158,7 @@ while true; do
                 echo "Log file is not set. Use 'change-log' to set it."
             fi
             ;;
-        successful-attacks)
+        sa|successful-attacks)
             if [[ -f "$LOG_FILE" ]]; then
                 if [ ${#KEYWORDS[@]} -eq 0 ]; then
                     echo "No keywords provided."
@@ -172,13 +172,13 @@ while true; do
                     done | less -S
                 fi
             else
-                echo "Log file is not set. Use 'change-log' to set it."
+                echo "Log file is not set. Use 'al, add-log' to set it."
             fi
             ;;
-        quit)
+        q|quit)
             break
             ;;
-        help)
+        h|help)
             show_help
             ;;
         *)
