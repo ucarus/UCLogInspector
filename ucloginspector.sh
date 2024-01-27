@@ -52,21 +52,22 @@ search_logs() {
     local keyword=$1
     local base_log=$2
 
-    # Check if the base log file exists
+    # Directory of the log file
+    local log_dir=$(dirname "$base_log")
+    
+    # Base name of the log file
+    local base_name=$(basename "$base_log")
+
+    # Search the base log file if it exists
     if [[ -f "$base_log" ]]; then
         grep "$keyword" "$base_log"
     fi
 
-    # Directory of the log file
-    local log_dir=$(dirname "$base_log")
-    
-    # Base name of the log file without extension
-    local base_name=$(basename "$base_log" | sed 's/\.[^.]*$//')
+    # Pattern for standard and prefixed rotated log files
+    local rotated_log_pattern="${log_dir}/${base_name}*"
 
-    # Search through rotated logs with and without prefix
-    local log_files=("${log_dir}/${base_name}"* "${log_dir}/*${base_name}"*)
-
-    for log in "${log_files[@]}"; do
+    # Search through standard rotated logs
+    for log in $rotated_log_pattern; do
         if [[ -f "$log" && "$log" != "$base_log" ]]; then
             if [[ "$log" =~ \.gz$ ]]; then
                 # For gzip compressed logs
@@ -78,7 +79,6 @@ search_logs() {
         fi
     done
 }
-
 
 while true; do
     read -e -p "shell>" cmd args
@@ -235,38 +235,36 @@ while true; do
             done
             ;;
         i|intruders)
-	    if [[ -f "$LOG_FILE" ]]; then
     	    if [ ${#KEYWORDS[@]} -eq 0 ]; then
-        	    echo "No keywords provided."
-	        else
-    	        INTRUDERS_INFO=()
-        	    for kw in "${KEYWORDS[@]}"; do
-	                while IFS= read -r line; do
-    	                if [[ "$line" =~ ^([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)\ -\ -\ \[([0-9]{2})/([A-Za-z]{3})/([0-9]{4}) ]]; then
-        	                ip="${BASH_REMATCH[1]}"
-                	        day="${BASH_REMATCH[2]}"
-	                        month="${BASH_REMATCH[3]}"
-    	                        year="${BASH_REMATCH[4]}"
-        	                # Convert the date to a sortable format (YYYY-MM-DD)
-                	        # This requires a mapping from month names to numbers
-	                        month_num=$(date -d "01 $month 2000" +%m)
-                                sortable_date="$year-$month_num-$day"
-        	                INTRUDERS_INFO+=("$sortable_date $ip")
-                	    fi
-	                done < <(search_logs "$kw" "$LOG_FILE")
-    	        done
-
-        	    # Sort the array by date and display the results
-	            IFS=$'\n' INTRUDERS_INFO=($(sort -u <<<"${INTRUDERS_INFO[*]}"))
-	            unset IFS
-
-    		    echo "Found date IP entries sorted by date:"
-	            for i in "${!INTRUDERS_INFO[@]}"; do
-	                printf "%3d: %s\n" "$i" "${INTRUDERS_INFO[$i]}"
-	            done
-	        fi
+    	        echo "No keywords provided."
 	    else
-	        echo "Log file is not set. Use 'al, add-log' to set it."
+    	        INTRUDERS_INFO=()
+    	        for kw in "${KEYWORDS[@]}"; do
+		    echo $kw
+	            while IFS= read -r line; do
+    			echo $line
+			if [[ "$line" =~ ^([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)\ -\ -\ \[([0-9]{2})/([A-Za-z]{3})/([0-9]{4}) ]]; then
+        	            ip="${BASH_REMATCH[1]}"
+                	    day="${BASH_REMATCH[2]}"
+	                    month="${BASH_REMATCH[3]}"
+    	                    year="${BASH_REMATCH[4]}"
+        	            # Convert the date to a sortable format (YYYY-MM-DD)
+                	    # This requires a mapping from month names to numbers
+	                    month_num=$(date -d "01 $month 2000" +%m)
+                            sortable_date="$year-$month_num-$day"
+        	            INTRUDERS_INFO+=("$sortable_date $ip")
+                	fi
+	            done < <(search_logs "$kw" "$LOG_FILE")
+    	    	done
+
+        	# Sort the array by date and display the results
+	        IFS=$'\n' INTRUDERS_INFO=($(sort -u <<<"${INTRUDERS_INFO[*]}"))
+	        unset IFS
+
+    		echo "Found date IP entries sorted by date:"
+	        for i in "${!INTRUDERS_INFO[@]}"; do
+	            printf "%3d: %s\n" "$i" "${INTRUDERS_INFO[$i]}"
+	        done
 	    fi
 	    ;;
         sa|successful-attacks)
