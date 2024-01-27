@@ -23,13 +23,16 @@ fi
 
 INTRUDERS_IPS=()  # Array for storing found IP addresses
 
+
 show_help() {
     echo "Commands:"
     echo "  intruders (i) - Prints IP addresses containing at least one keyword"
     echo "  successful-attacks (sa) - Searches for successful POST requests with code 200 from 'intruders' IP addresses"
-    echo "  search (s) <index> - Searches for an IP address based on its index in the intruders list"
+    echo "  search (s) <index> - Searches for an IP address based on its index in the intruders list and displays the log entries"
+    echo "  export (e) <index> - Exports log entries for the given IP address index to a file"
+    echo "  export-all (ea) - Exports log entries for all IP addresses in the intruders list to separate files"
     echo "  list (l) - Displays unique IP addresses"
-    echo "  add-log (al) <log_file> - Changes the currently used log file"
+    echo "  add-log (al) <log_file> - Adds a new log file"
     echo "  show-logs (sl) - Displays the history of used log files"
     echo "  switch-log (sw) <index> - Switches to a log file based on the index in history"
     echo "  add-keyword (ak) <keyword> - Adds a keyword to the search list"
@@ -39,40 +42,101 @@ show_help() {
     echo "  help (h) - Displays this help message"
 }
 
+
 search_logs() {
     local keyword=$1
     local base_log=$2
 
-    # Searching the current log
-    grep "$keyword" "$base_log"
+    # Check if the base log file exists
+    if [[ -f "$base_log" ]]; then
+        grep "$keyword" "$base_log"
+    fi
 
-    # Creating a pattern for rotated logs
+    # Create a pattern for rotated logs
     local log_pattern="${base_log}.*"
 
-    # Searching rotated logs
+    # Search through rotated logs
     for log in $log_pattern; do
-        if [[ "$log" =~ \.gz$ ]]; then
-            # For gzip compressed logs
-            zgrep "$keyword" "$log"
-        else
-            # For uncompressed logs
-            grep "$keyword" "$log"
+        if [[ -f "$log" ]]; then
+            if [[ "$log" =~ \.gz$ ]]; then
+                # For gzip compressed logs
+                zgrep "$keyword" "$log"
+            else
+                # For uncompressed logs
+                grep "$keyword" "$log"
+            fi
         fi
     done
 }
+
 
 while true; do
     read -e -p "shell>" cmd args
 
     case "$cmd" in
         s|search)
-            if [[ $args =~ ^[0-9]+$ ]] && [ $args -ge 0 ] && [ $args -lt ${#INTRUDERS_IPS[@]} ]; then
-                ip_address="${INTRUDERS_IPS[$args]}"
-                search_logs "$ip_address" "$LOG_FILE" | less -S
+            if [[ $args =~ ^[0-9]+$ ]] && [ $args -ge 0 ] && [ $args -lt ${#INTRUDERS_INFO[@]} ]; then
+                selected_entry="${INTRUDERS_INFO[$args]}"
+                echo "Searching logs for: $selected_entry"
+	        # Split the entry into date and IP address
+                IFS=' ' read -r entry_date entry_ip <<< "$selected_entry"
+
+	        # Use search_logs function to find logs with the IP address
+                search_logs "$entry_ip" "$LOG_FILE" | less -S
             else
                 echo "Invalid index: $args"
             fi
             ;;
+
+	e|export)
+	    if [[ $args =~ ^[0-9]+$ ]] && [ $args -ge 0 ] && [ $args -lt ${#INTRUDERS_INFO[@]} ]; then
+	        selected_entry="${INTRUDERS_INFO[$args]}"
+	        echo "Exporting logs for: $selected_entry"
+	        # Split the entry into date and IP address
+	        IFS=' ' read -r entry_date entry_ip <<< "$selected_entry"
+
+	        # Create a directory based on the base name of the log file
+	        log_dir=$(basename "$LOG_FILE")
+	        mkdir -p "${log_dir}/${entry_date}"
+	        # Create a file name with date and IP address
+	        filename="${log_dir}/${entry_date}/${entry_ip}.log"
+	
+	        # Use search_logs function to find logs with the IP address and write to file
+	        search_logs "$entry_ip" "$LOG_FILE" > "$filename"
+	
+	        echo "Logs exported to $filename"
+	    else
+	        echo "Invalid index: $args"
+	    fi
+	    ;;
+
+	ea|export-all)
+	    if [ ${#INTRUDERS_INFO[@]} -eq 0 ]; then
+	        echo "No intruders data to export."
+	        return
+	    fi
+	
+	    # Create a directory based on the base name of the log file
+	    log_dir=$(basename "$LOG_FILE")
+	    mkdir -p "$log_dir"
+	
+	    for entry in "${INTRUDERS_INFO[@]}"; do
+	        echo "Exporting logs for: $entry"
+	        # Split the entry into date and IP address
+	        IFS=' ' read -r entry_date entry_ip <<< "$entry"
+
+	        mkdir -p "${log_dir}/${entry_date}"
+
+	        # Create a file name with date and IP address
+	        filename="${log_dir}/${entry_date}/${entry_ip}.log"
+	
+	        # Use search_logs function to find logs with the IP address and write to file
+	        search_logs "$entry_ip" "$LOG_FILE" > "$filename"
+	
+	        echo "Logs exported to $filename"
+	    done
+	    ;;
+
         l|list)
             cut -d' ' -f1 "$LOG_FILE" | sort -u
             ;;
@@ -140,37 +204,41 @@ while true; do
                 echo "  - $kw"
             done
             ;;
-        intruders)
-            if [[ -f "$LOG_FILE" ]]; then
-                if [ ${#KEYWORDS[@]} -eq 0 ]; then
-                    echo "No keywords provided."
-                else
-                    INTRUDERS_INFO=()  # New array for storing date, time, and IP addresses
-                    for kw in "${KEYWORDS[@]}"; do
-                        # Use search_logs function to handle both current and rotated logs
-                        while IFS= read -r line; do
-                            # Extract and format date, time, and IP address from the log line
-                            if [[ "$line" =~ ^([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+) - - \[([^\]]+)\] ]]; then
-                                ip="${BASH_REMATCH[1]}"
-                                datetime="${BASH_REMATCH[2]}"
-                                INTRUDERS_INFO+=("$datetime $ip")
-                            fi
-                        done < <(search_logs "$kw" "$LOG_FILE")
-                    done
+        i|intruders)
+	    if [[ -f "$LOG_FILE" ]]; then
+    	    if [ ${#KEYWORDS[@]} -eq 0 ]; then
+        	    echo "No keywords provided."
+	        else
+    	        INTRUDERS_INFO=()
+        	    for kw in "${KEYWORDS[@]}"; do
+	                while IFS= read -r line; do
+    	                if [[ "$line" =~ ^([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)\ -\ -\ \[([0-9]{2})/([A-Za-z]{3})/([0-9]{4}) ]]; then
+        	                ip="${BASH_REMATCH[1]}"
+                	        day="${BASH_REMATCH[2]}"
+	                        month="${BASH_REMATCH[3]}"
+    	                        year="${BASH_REMATCH[4]}"
+        	                # Convert the date to a sortable format (YYYY-MM-DD)
+                	        # This requires a mapping from month names to numbers
+	                        month_num=$(date -d "01 $month 2000" +%m)
+                                sortable_date="$year-$month_num-$day"
+        	                INTRUDERS_INFO+=("$sortable_date $ip")
+                	    fi
+	                done < <(search_logs "$kw" "$LOG_FILE")
+    	        done
 
-                    # Remove duplicate entries and display the results
-                    IFS=$'\n' INTRUDERS_INFO=($(sort -u <<<"${INTRUDERS_INFO[*]}"))
-                    unset IFS
+        	    # Sort the array by date and display the results
+	            IFS=$'\n' INTRUDERS_INFO=($(sort -u <<<"${INTRUDERS_INFO[*]}"))
+	            unset IFS
 
-                    echo "Found date-time IP entries:"
-                    for i in "${!INTRUDERS_INFO[@]}"; do
-                        echo "$i: ${INTRUDERS_INFO[$i]}"
-                    done
-                fi
-            else
-                echo "Log file is not set. Use 'al, add-log' to set it."
-            fi
-            ;;
+    		    echo "Found date IP entries sorted by date:"
+	            for i in "${!INTRUDERS_INFO[@]}"; do
+	                printf "%3d: %s\n" "$i" "${INTRUDERS_INFO[$i]}"
+	            done
+	        fi
+	    else
+	        echo "Log file is not set. Use 'al, add-log' to set it."
+	    fi
+	    ;;
         sa|successful-attacks)
             if [[ -f "$LOG_FILE" ]]; then
                 if [ ${#KEYWORDS[@]} -eq 0 ]; then
