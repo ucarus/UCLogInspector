@@ -10,3 +10,27 @@ The script searches the access log for keywords that may indicate attempts to sc
 
 The aim of UCLogInspector is to enable quick and intuitive searching in log files, provide users with clear information about suspicious activities, and help them respond rapidly to security incidents. This tool is invaluable in situations where a quick analysis of logs is required upon suspicion of a security incident on one of your virtual servers.
 
+## Getting Started
+
+### Prerequisites
+
+Before you begin, ensure you have met the following requirements:
+- The script is designed for the Bash shell.
+- It is intended to be run in a Linux environment.
+- The access log should be in the following format: `77.48.134.52 - - [26/Jan/2024:18:50:15 +0100] "GET /admin/phpMyAdmin/server_import.php HTTP/1.1" 404 17535 "-" "curl/7.74.0"`
+
+Make sure your system meets these prerequisites to utilize the script effectively.
+
+### Installation
+
+To install UCLogInspector, follow these steps:
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/ucarus/UCLogInspector.git
+
+2. Run script:
+   ```bash
+   cd UCLogInspector
+   ./ucloginspector.sh
+   
