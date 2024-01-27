@@ -140,22 +140,35 @@ while true; do
                 echo "  - $kw"
             done
             ;;
-        i|intruders)
+        intruders)
             if [[ -f "$LOG_FILE" ]]; then
                 if [ ${#KEYWORDS[@]} -eq 0 ]; then
                     echo "No keywords provided."
                 else
-                    INTRUDERS_IPS=($(for kw in "${KEYWORDS[@]}"; do
-                        search_logs "$kw" "$LOG_FILE" | cut -d' ' -f1
-                    done | sort -u))
+                    INTRUDERS_INFO=()  # New array for storing date, time, and IP addresses
+                    for kw in "${KEYWORDS[@]}"; do
+                        # Use search_logs function to handle both current and rotated logs
+                        while IFS= read -r line; do
+                            # Extract and format date, time, and IP address from the log line
+                            if [[ "$line" =~ ^([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+) - - \[([^\]]+)\] ]]; then
+                                ip="${BASH_REMATCH[1]}"
+                                datetime="${BASH_REMATCH[2]}"
+                                INTRUDERS_INFO+=("$datetime $ip")
+                            fi
+                        done < <(search_logs "$kw" "$LOG_FILE")
+                    done
 
-                    echo "Found IP addresses:"
-                    for i in "${!INTRUDERS_IPS[@]}"; do
-                        echo "$i: ${INTRUDERS_IPS[$i]}"
+                    # Remove duplicate entries and display the results
+                    IFS=$'\n' INTRUDERS_INFO=($(sort -u <<<"${INTRUDERS_INFO[*]}"))
+                    unset IFS
+
+                    echo "Found date-time IP entries:"
+                    for i in "${!INTRUDERS_INFO[@]}"; do
+                        echo "$i: ${INTRUDERS_INFO[$i]}"
                     done
                 fi
             else
-                echo "Log file is not set. Use 'change-log' to set it."
+                echo "Log file is not set. Use 'al, add-log' to set it."
             fi
             ;;
         sa|successful-attacks)
