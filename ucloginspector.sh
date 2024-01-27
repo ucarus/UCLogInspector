@@ -1,5 +1,8 @@
 #!/bin/bash
 
+VERSION="0.0.1-dev"
+
+
 LOG_FILE=""
 
 LOG_HISTORY_FILE="log_history.txt"
@@ -31,6 +34,7 @@ show_help() {
     echo "  search (s) <index> - Searches for an IP address based on its index in the intruders list and displays the log entries"
     echo "  export (e) <index> - Exports log entries for the given IP address index to a file"
     echo "  export-all (ea) - Exports log entries for all IP addresses in the intruders list to separate files"
+    echo "  export-urls (eu) - Extracts and displays only the URL part of the log entries for all IP addresses in the intruders list"
     echo "  list (l) - Displays unique IP addresses"
     echo "  add-log (al) <log_file> - Adds a new log file"
     echo "  show-logs (sl) - Displays the history of used log files"
@@ -40,6 +44,7 @@ show_help() {
     echo "  show-keywords (sk) - Displays the list of keywords for searching"
     echo "  quit (q) - Exits the script"
     echo "  help (h) - Displays this help message"
+    echo "  version (v) - Displays version of the script"
 }
 
 
@@ -52,12 +57,17 @@ search_logs() {
         grep "$keyword" "$base_log"
     fi
 
-    # Create a pattern for rotated logs
-    local log_pattern="${base_log}.*"
+    # Directory of the log file
+    local log_dir=$(dirname "$base_log")
+    
+    # Base name of the log file without extension
+    local base_name=$(basename "$base_log" | sed 's/\.[^.]*$//')
 
-    # Search through rotated logs
-    for log in $log_pattern; do
-        if [[ -f "$log" ]]; then
+    # Search through rotated logs with and without prefix
+    local log_files=("${log_dir}/${base_name}"* "${log_dir}/*${base_name}"*)
+
+    for log in "${log_files[@]}"; do
+        if [[ -f "$log" && "$log" != "$base_log" ]]; then
             if [[ "$log" =~ \.gz$ ]]; then
                 # For gzip compressed logs
                 zgrep "$keyword" "$log"
@@ -136,6 +146,26 @@ while true; do
 	        echo "Logs exported to $filename"
 	    done
 	    ;;
+
+	eu|export-urls)
+
+	    # Create a directory based on the base name of the log file
+	    log_dir=$(basename "$LOG_FILE")
+
+	    for entry in "${INTRUDERS_INFO[@]}"; do
+		IFS=' ' read -r entry_date entry_ip <<< "$entry"
+		
+		mkdir -p "${log_dir}/${entry_date}"
+		
+		# Create a file name with date and IP address
+		filename="${log_dir}/${entry_date}/${entry_ip}.urls"
+
+		echo "URLs for $entry_ip:"
+		search_logs "$entry_ip" "$LOG_FILE" | sed -n 's/.*"\(GET\|POST\) \([^ ]*\) HTTP\/1\.[01]".*/\2/p' > "$filename"
+	    done
+
+	    ;;
+
 
         l|list)
             cut -d' ' -f1 "$LOG_FILE" | sort -u
@@ -256,12 +286,36 @@ while true; do
                 echo "Log file is not set. Use 'al, add-log' to set it."
             fi
             ;;
+
+	esa|export-successful-attacks)
+	    if [ ${#INTRUDERS_INFO[@]} -eq 0 ]; then
+	        echo "No intruders data to export."
+	        break
+	    fi
+	
+	    # Create a directory based on the base name of the log file
+	    log_dir=$(basename "$LOG_FILE")
+	    mkdir -p "${log_dir}"
+
+	    for entry in "${INTRUDERS_INFO[@]}"; do
+	        # Split the entry into date and IP address
+	        IFS=' ' read -r entry_date entry_ip <<< "$entry"
+
+	        # Search logs for successful POST requests by this IP and write to file
+	        search_logs "$entry_ip" "$LOG_FILE" | grep "POST" | grep " 200 "
+
+	    done > "${log_dir}/successful_attacks.log"
+            echo "Successful attack logs exported."
+	    ;;
         q|quit)
             break
             ;;
         h|help)
             show_help
             ;;
+	v|version)
+		echo $VERSION
+	    ;;
         *)
             echo "Unknown command: $cmd"
             show_help
