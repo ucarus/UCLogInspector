@@ -240,9 +240,7 @@ while true; do
 	    else
     	        INTRUDERS_INFO=()
     	        for kw in "${KEYWORDS[@]}"; do
-		    echo $kw
 	            while IFS= read -r line; do
-    			echo $line
 			if [[ "$line" =~ ^([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)\ -\ -\ \[([0-9]{2})/([A-Za-z]{3})/([0-9]{4}) ]]; then
         	            ip="${BASH_REMATCH[1]}"
                 	    day="${BASH_REMATCH[2]}"
